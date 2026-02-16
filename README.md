@@ -3,11 +3,17 @@
 ## Netcdf data structure:
 
 netcdf RF01_microphysics_beta {
+
 dimensions:
+
 	time = 25065 ;
+	
 	bin_centers = 169 ;
+	
 	bin_edges = 170 ;
+	
 variables:
+
 	double time(time) ;
 		time:longname = "UTC time for concentration arrays and bulk variables" ;
 		time:units = "Seconds from midnight of start date" ;
