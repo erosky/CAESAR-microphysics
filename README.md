@@ -10,7 +10,7 @@ probe_endbins.crossover_cdp_holo = [12.71 13.69 15.65 17.61];
 probe_endbins.fixed_holo = [17.61 19.57 21.53 23.49 25.45 27.41 29.37 31.34 33.3  35.26 ...
    37.22 39.18 41.14 43.1  45.0];
 
-CDP can be used as backup if HOLODEC unavailable
+- CDP can be used as backup if HOLODEC unavailable
 
 probe_endbins.crossover_holo_f2ds = [ 45.  55.   65.   75.   85.   95. 105.  125.  ...
    145.  175.  225.];
@@ -22,9 +22,11 @@ probe_endbins.crossover_f2ds_hvps = [825.  975.  1125.   1275.   1425.];
 fixed.hvps = [1425… ];
 
 
-Fixed size ranges are size bins that always use the data from one specific probe, under any circumstance.
+- Fixed size ranges are size bins that always use the data from one specific probe, under any circumstance.-
 
-Crossover regions are size bins that will use a combination of values from two probes that overlap in that size range.
+- Crossover regions are size bins that will use a combination of values from two probes that overlap in that size range.
+
+### Crossover regions:
 
 (transition.m) If both probes have non-zero values for over half of the crossover region: 
 
