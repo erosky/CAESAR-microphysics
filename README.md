@@ -1,4 +1,4 @@
-# BETA version of microphysics data product. This dataset represents our best estimate of particle size distributions, by combining the data from four different cloud probes.
+Beta version of microphysics data product: This dataset represents our best estimate of particle size distributions, by combining the data from four different cloud probes.
 
 ## Netcdf data structure:
 
