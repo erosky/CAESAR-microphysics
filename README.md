@@ -2,8 +2,6 @@
 
 ## Netcdf data structure:
 
-netcdf RF01_microphysics_beta {
-
 dimensions:
 
 	time = 25065 ;
@@ -47,7 +45,8 @@ variables:
 		cloud_phase:flag_values = 0, 1, 2, 3, 4 ;
 		cloud_phase:flag_meaning = "clearicemixedliquiddrizzle" ;
 
-// global attributes:
+global attributes:
+
 		:ProductName = "Cloud Microphysics Value-Added Data Product" ;
 		:Version = "beta" ;
 		:Source = "CDP, F2DS, HOLODEC, HVPS, Nevzorov" ;
@@ -57,7 +56,7 @@ variables:
 		:Platform = "N130AR" ;
 		:FlightNumber = "RF01" ;
 		:date_created = "2026/02/16" ;
-}
+
 
 
 # RULES FOR COMBINING PROBE DATA FOR EACH TIMESTEP (ALL FLIGHTS):
