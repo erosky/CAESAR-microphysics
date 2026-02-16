@@ -1,3 +1,59 @@
+# BETA version of microphysics data product. This dataset represents our best estimate of particle size distributions, by combining the data from four different cloud probes.
+
+## Netcdf data structure:
+
+netcdf RF01_microphysics_beta {
+dimensions:
+	time = 25065 ;
+	bin_centers = 169 ;
+	bin_edges = 170 ;
+variables:
+	double time(time) ;
+		time:longname = "UTC time for concentration arrays and bulk variables" ;
+		time:units = "Seconds from midnight of start date" ;
+	double bin_edges(bin_edges) ;
+		bin_edges:longname = "Upper/lower edges of concentration size bins" ;
+		bin_edges:units = "microns" ;
+	double bin_centers(bin_centers) ;
+		bin_centers:longname = "Center value of concentration size bins" ;
+		bin_centers:units = "microns" ;
+	double concentration(bin_centers, time) ;
+		concentration:longname = "Best estimate of particle number concentration, all particles, normalized by bin width" ;
+		concentration:units = "#/m4" ;
+	double concentration_err(bin_centers, time) ;
+		concentration_err:longname = "Uncertainty bound on particle number concentration, all particles, normalized by bin width" ;
+		concentration_err:units = "#/m4" ;
+	double lat(time) ;
+		lat:longname = "Latitude" ;
+		lat:units = "degrees North" ;
+	double lon(time) ;
+		lon:longname = "Longitude" ;
+		lon:units = "degrees East" ;
+	double alt(time) ;
+		alt:longname = "GPS Altitude" ;
+		alt:units = "meters" ;
+	double t(time) ;
+		t:longname = "Ambient Temperature" ;
+		t:units = "C" ;
+	int cloud_phase(time) ;
+		cloud_phase:longname = "Estimate of cloud phase identification using algorithm" ;
+		cloud_phase:units = "none" ;
+		cloud_phase:flag_values = 0, 1, 2, 3, 4 ;
+		cloud_phase:flag_meaning = "clearicemixedliquiddrizzle" ;
+
+// global attributes:
+		:ProductName = "Cloud Microphysics Value-Added Data Product" ;
+		:Version = "beta" ;
+		:Source = "CDP, F2DS, HOLODEC, HVPS, Nevzorov" ;
+		:DataContact = "Elise Rosky (emrosky@ucar.edu) or EOL Sarah Woods" ;
+		:FlightDate = "02/28/2024" ;
+		:ProjectName = "CAESAR" ;
+		:Platform = "N130AR" ;
+		:FlightNumber = "RF01" ;
+		:date_created = "2026/02/16" ;
+}
+
+
 # RULES FOR COMBINING PROBE DATA FOR EACH TIMESTEP (ALL FLIGHTS):
 
 ## (create_bins.m) BIN EDGE DEFINITIONS:
