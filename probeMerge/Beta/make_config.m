@@ -15,12 +15,12 @@ arguments
 end
 
 % Processing options
-options.bulk = 1; % Process bulk values: 1=yes, 0=no
-options.PSD_phase = 1; % Perform PSD phase partition: 1=yes, 0=no
+options.bulk = 0; % Process bulk values: 1=yes, 0=no
+options.PSD_phase = 0; % Perform PSD phase partition: 1=yes, 0=no
 
 % Output netcdf file
 outdir = "/home/utest/Research/CAESAR/Microphysics/DataProduct/";
-outnc = outdir + flightnumber + "_microphysics_PRELIMINARY.nc";
+outnc = outdir + flightnumber + "_microphysics_beta.nc";
 
 % Data Sources
 datadir = "/home/utest/Research/CAESAR/CAESAR_Data/";
@@ -31,9 +31,6 @@ source.f2ds_nc = datadir + "OAP/F2DS_Compact/" + flightnumber + "_H.nc";
 source.hvps_nc = datadir + "OAP/HVPS/" + flightnumber + "_HVPS.nc";
 source.nev_nc = datadir + "nevzorov/" + flightnumber + "_nev.nc";
 source.phase_id = "/home/utest/Research/CAESAR/Microphysics/Phase_ID/from_Nick/" + flightnumber + "_processed_phases_PRELIM.csv";
-if options.PSD_phase==1
-    source.f2ds_round = datadir + "OAP/F2DS_Compact/" + flightnumber + "_H_WATER.nc";
-end
 
 % Make output directory
 if ~exist(outdir)

@@ -198,24 +198,24 @@ function [conc_best_t, conc_err_t, probe_flag_t]=composite_1Hz(t)
     %% Fill in F2DS values
     if exists.f2ds
         conc_best_t(f2ds_mask) = f2ds.conc(time_idx.f2ds,f2ds_idx);
-        probe_flag_t(f2ds_mask) =f2ds_flag;
+        phase_t(f2ds_mask) =f2ds_flag;
     % Fill with NaN if data is unavailable
-    else conc_best_t(f2ds_mask) = NaN; probe_flag_t(f2ds_mask) = NaN;
+    else conc_best_t(f2ds_mask) = NaN; phase_t(f2ds_mask) = NaN;
     end
     % assign error
     conc_err_t(f2ds_mask) = f2ds_err;
 
     %% Fill in F2DS HVPS crossover values
     if exists.f2ds & exists.hvps
-        [conc_best_t(f2ds_hvps_mask), probe_flag_t(f2ds_hvps_mask)]=transition(f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_f2ds_hvps)),...
+        [conc_best_t(f2ds_hvps_mask), phase_t(f2ds_hvps_mask)]=transition(f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_f2ds_hvps)),...
                                                 hvps.conc(time_idx.hvps,ismember(hvps.midbins,probe_midbins.crossover_f2ds_hvps)),[f2ds_flag hvps_flag f2ds_hvps_flag]);
     elseif exists.f2ds & ~exists.hvps
         conc_best_t(f2ds_hvps_mask)=f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_f2ds_hvps));
-        probe_flag_t(f2ds_hvps_mask) = f2ds_flag;
+        phase_t(f2ds_hvps_mask) = f2ds_flag;
     elseif ~exists.f2ds & exists.hvps
         conc_best_t(f2ds_hvps_mask)=hvps.conc(time_idx.hvps,ismember(hvps.midbins,probe_midbins.crossover_f2ds_hvps));
-        probe_flag_t(f2ds_hvps_mask) = hvps_flag;
-    else conc_best_t(f2ds_hvps_mask)=NaN; probe_flag_t(f2ds_hvps_mask)=NaN;
+        phase_t(f2ds_hvps_mask) = hvps_flag;
+    else conc_best_t(f2ds_hvps_mask)=NaN; phase_t(f2ds_hvps_mask)=NaN;
     end
     % assign error
     conc_err_t(f2ds_hvps_mask) = f2ds_hvps_err;
@@ -223,8 +223,8 @@ function [conc_best_t, conc_err_t, probe_flag_t]=composite_1Hz(t)
     %% Fill in HVPS values
     if exists.hvps
         conc_best_t(hvps_mask) = hvps.conc(time_idx.hvps,hvps_idx);
-        probe_flag_t(hvps_mask) = hvps_flag;
-    else conc_best_t(hvps_mask) = NaN; probe_flag_t(hvps_mask) = NaN;
+        phase_t(hvps_mask) = hvps_flag;
+    else conc_best_t(hvps_mask) = NaN; phase_t(hvps_mask) = NaN;
     end
     % assign error
     conc_err_t(hvps_mask) = 0;

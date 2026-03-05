@@ -1,8 +1,8 @@
 function fnout = createMicrophysics(flightnumber)
     % Create a netcdf file containing value-added microhysics data.
     % 
-    % PRELIMINARY Version
-    % March 4, 2026
+    % Beta.2 Version
+    % Feb 23, 2026
     %
     % source: Input data source paths are specified inside "make_config.m" 
     % outnc:  Path for output netcdf is specified inside "make_config.m"
@@ -31,7 +31,7 @@ function fnout = createMicrophysics(flightnumber)
         return %stop script if config doesnt work
     end
     
-    version = 'PRELIMINARY';
+    version = 'beta.2';
     load("config","source","outnc","options")
     disp(outnc)
     
@@ -51,15 +51,21 @@ function fnout = createMicrophysics(flightnumber)
     phase_id = NaN(1, length(nctime));
     conc = zeros(length(nctime), length(midbins));
     conc_err = zeros(length(nctime), length(midbins));
-    probe_flag = zeros(length(nctime), length(midbins));
+    probe_flag = NaN(length(nctime), length(midbins));
 
     if options.PSD_phase ~= 0
         concround = zeros(length(nctime), length(midbins));
         concice = zeros(length(nctime), length(midbins));
         concround_err = zeros(length(nctime), length(midbins));
         concice_err = zeros(length(nctime), length(midbins));
-        proberound_flag = zeros(length(nctime), length(midbins));
-        probeice_flag = zeros(length(nctime), length(midbins));
+    end
+    if options.bulk ~= 0
+        lwc = zeros(1, length(nctime));
+        twc = zeros(1, length(nctime));
+        iwc = zeros(1, length(nctime));  
+        lwc_err = zeros(1, length(nctime));
+        %twc_err = zeros(1, length(nctime));
+        %iwc_err = zeros(1, length(nctime));
     end
 
     %% Set up the netCDF file
@@ -86,24 +92,22 @@ function fnout = createMicrophysics(flightnumber)
         't', 'Ambient Temperature', 'C', nctime_dimid};
     if options.bulk ~= 0
         % Add bulk variables
-        ncdfprops(end+1:end+6,:) = ...
-        {'lwc', 'Best estimate of liquid water content from Nevzorov', 'g/m3', nctime_dimid;
-        'twc', 'Best estimate of total water content from Nevzorov', 'g/m3', nctime_dimid;
-        'iwc', 'Best estimate of ice water content from Nevzorov', 'g/m3', nctime_dimid;
-        'lwc_err', 'Uncertainty bound on liquid water content', 'g/m3', nctime_dimid;
-        'twc_err', 'Uncertainty bound on total water content', 'g/m3', nctime_dimid;
-        'iwc_err', 'Uncertainty bound on ice water content', 'g/m3', nctime_dimid};
+        ncdfprops(end+1:end+5,:) = ...
+        {'lwc', 'Best estimate of liquid water content', 'g/m3', nctime_dimid;
+        'twc', 'Best estimate of total water content', 'g/m3', nctime_dimid;
+        'iwc', 'Best estimate of ice water content', 'g/m3', nctime_dimid;
+        'lwc_err', 'Uncertainty bound on liquid water content', 'g/m3', nctime_dimid};
     end
     if options.PSD_phase ~= 0
         % Add PSD phase partitioning
-        ncdfprops(end+1:end+4,:) = ...
+        ncdfprops(end+1:end+5,:) = ...
         {'concentration_round', 'Best estimate of particle number concentration, round particles, normalized by bin width', '#/m4', [nctime_dimid, midbins_dimid];
         'concentration_ice', 'Best estimate of particle number concentration, ice particles, normalized by bin width', '#/m4', [nctime_dimid, midbins_dimid];
         'concentration_round_err', 'Uncertainty bound on particle number concentration, round particles, normalized by bin width', '#/m4', [nctime_dimid, midbins_dimid];
         'concentration_ice_err', 'Uncertainty bound on particle number concentration, ice particles, normalized by bin width', '#/m4', [nctime_dimid, midbins_dimid]};
     end
 
-    for i = 1:size(ncdfprops,1)
+    for i = 1:length(ncdfprops)
         varid = netcdf.defVar(ncid, ncdfprops{i,1}, 'NC_DOUBLE', ncdfprops{i,4});
         netcdf.putAtt(ncid, varid, 'longname', ncdfprops{i,2});
         netcdf.putAtt(ncid, varid, 'units', ncdfprops{i,3});
@@ -112,22 +116,16 @@ function fnout = createMicrophysics(flightnumber)
 
     % Special case for cloud phase variable and other flags
     flagprops = {'cloud_phase', 'Estimate of cloud phase identification using algorithm', nctime_dimid, [0 1 2 3 4], ["clear" "ice" "mixed" "liquid" "drizzle"];
-        'concentration_probe', 'Identification of probe(s) used to construct the concentration best estimate', [nctime_dimid, midbins_dimid], [1 2 3 4 5 6 7], ["CDP" "CDP_HOLODEC_mean" "HOLODEC" "HOLODEC_F2DS_mean" "F2DS" "F2DS_HVPS_mean" "HVPS"]};
+        'concentration_probe', 'Identification of probe(s) used to construct the concentration best estimate', [nctime_dimid, midbins_dimid], [1 2 3 4 5 6 7],... 
+        ["CDP" "CDP_HOLODEC_mean" "HOLODEC" "HOLODEC_F2DS_mean" "F2DS" "F2DS_HVPS_mean" "HVPS"]};
 
-    if options.PSD_phase ~= 0
-        % Add PSD phase partitioning
-        flagprops(end+1:end+2,:) = ...
-        {'concentration_round_probe', 'Identification of probe(s) used to construct the concentration best estimate', [nctime_dimid, midbins_dimid], [1 2 3 4 5 6 7], ["CDP" "CDP_HOLODEC_mean" "HOLODEC" "HOLODEC_F2DS_mean" "F2DS" "F2DS_HVPS_mean" "HVPS"];
-        'concentration_ice_probe', 'Identification of probe(s) used to construct the concentration best estimate', [nctime_dimid, midbins_dimid], [1 2 3 4 5 6 7], ["CDP" "CDP_HOLODEC_mean" "HOLODEC" "HOLODEC_F2DS_mean" "F2DS" "F2DS_HVPS_mean" "HVPS"]};
-    end
-
-    for j = 1:size(flagprops,1)
-        varid = netcdf.defVar(ncid, flagprops{j,1}, 'NC_INT', flagprops{j,3});
-        netcdf.putAtt(ncid, varid, 'longname', flagprops{j,2});
-        netcdf.putAtt(ncid, varid, 'units', 'none');
-        netcdf.putAtt(ncid, varid, 'flag_values', flagprops{j,4},'NC_INT');
-        netcdf.putAtt(ncid, varid, 'flag_meaning', flagprops{j,5});
-        netcdf.defVarDeflate(ncid, varid, true, true, 5);   %Turn on compression
+    for i = 1:length(flagprops)
+        varid = netcdf.defVar(ncid, flagprops{i,1}, 'NC_INT', flagprops{i,3});
+        netcdf.putAtt(ncid, flagprops{i,1}, 'longname', flagprops{i,2});
+        netcdf.putAtt(ncid, flagprops{i,1}, 'units', 'none');
+        netcdf.putAtt(ncid, flagprops{i,1}, 'flag_values', flagprops{i,4},'NC_INT');
+        netcdf.putAtt(ncid, flagprops{i,1}, 'flag_meaning', flagprops{i,5});
+        netcdf.defVarDeflate(ncid, flagprops{i,1}, true, true, 5);   %Turn on compression
     end
 
     % Write global attributes
@@ -159,25 +157,13 @@ function fnout = createMicrophysics(flightnumber)
 
 
     %% Calculate composite distribution
-    [conc, conc_err, probe_flag] = PSD_merge(flightnumber,nctime);
-    if options.PSD_phase ~= 0
-        [concround, concice, concround_err, concice_err, proberound_flag, probeice_flag] = PSD_phase(flightnumber,nctime);
-        size(concround)
-        size(concice)
-    end
-    %% Get bulk values
-    if options.bulk ~= 0
-        nev = read_nevzorov(source.nev_nc);
-        size(nev.lwc)
-        size(nev.iwc)
-    end
+    [conc, conc_err] = PSD_merge(flightnumber,nctime);
 
     %% TESTS
     size(nctime)
     size(phase_id)
     size(conc)
     size(conc_err)
-    size(probe_flag)
     size(ac.aircraft.lat)
 
     %% Write concentration and bulk to netCDF
@@ -188,23 +174,10 @@ function fnout = createMicrophysics(flightnumber)
     netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'cloud_phase'), phase_id)
     netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration'), conc)
     netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration_err'), conc_err)
-    netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration_probe'), probe_flag)
-    if options.PSD_phase ~= 0
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration_round'), concround)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration_round_err'), concround_err)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration_round_probe'), proberound_flag)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration_ice'), concice)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration_ice_err'), concice_err)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'concentration_ice_probe'), probeice_flag)
-    end
-    if options.bulk ~= 0
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'lwc'), nev.lwc)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'iwc'), nev.iwc)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'twc'), nev.twc)  
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'lwc_err'), nev.lwc_err)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'iwc_err'), nev.iwc_err)
-        netcdf.putVar(ncid, netcdf.inqVarID(ncid, 'twc_err'), nev.twc_err)  
-    end
+    % if options.PSD_phase ~= 0
+    % end
+    % if options.PSD_phase ~= 0
+    % end
 
     netcdf.close(ncid);
 end

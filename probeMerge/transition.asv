@@ -32,7 +32,7 @@ if threshold>=0.5
     transition_values(bothzero) = 0;
 elseif c1_value>c2_value
      transition_values = c1; probe_flag(:) = c1_flag;
-else transition_values = c2; probe_flag(:) = c2_flag;
+else transition_values = c2; probe_flag(:) = c2_flag
 end
 
 end

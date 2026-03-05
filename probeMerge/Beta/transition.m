@@ -1,12 +1,6 @@
-function [transition_values, probe_flag] = transition(c1,c2,flags)
+function transition_values = transition(c1,c2)
 %TRANSITION Summary of this function goes here
 %   Detailed explanation goes here
-
-probe_flag = NaN(1, length(c1));
-
-mean_flag = flags(3);
-c1_flag = flags(1);
-c2_flag = flags(2);
 
 bothzero = (c1 == 0) & (c2 == 0);
 bothvalue = (c1 > 0) & (c2 > 0);
@@ -19,11 +13,6 @@ c2_value = length(nonzeros(c2));
 threshold = sum(bothvalue) / length(c1);
 
 if threshold>=0.5
-    probe_flag(:) = mean_flag;
-    probe_flag(c2 == 0) = c1_flag;
-    probe_flag(c1 == 0) = c2_flag;
-    probe_flag(bothzero) = mean_flag;
-
     c1(c1 == 0) = NaN; % Set Zeros To 1NaN1
     c2(c2 == 0) = NaN; % Set Zeros To 1NaN1
     combined = cat(3, c1, c2);
@@ -31,8 +20,8 @@ if threshold>=0.5
     transition_values = mean(combined, 3, 'omitnan');
     transition_values(bothzero) = 0;
 elseif c1_value>c2_value
-     transition_values = c1; probe_flag(:) = c1_flag;
-else transition_values = c2; probe_flag(:) = c2_flag;
+     transition_values = c1;
+else transition_values = c2;
 end
 
 end

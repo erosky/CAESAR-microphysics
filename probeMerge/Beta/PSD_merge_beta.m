@@ -1,4 +1,4 @@
-function [conc, conc_err, probe_flag] = PSD_merge(flightnumber, timestamps)
+function [conc, conc_err] = PSD_merge(flightnumber, timestamps)
 % Read in required files
 % OUTPUTS:
 % composite DSD best estimate
@@ -57,28 +57,17 @@ f2ds_hvps_mask = ismembertol(midbins,probe_midbins.crossover_f2ds_hvps); % f2ds 
 %% Set up count/concentration variables
 conc= zeros(length(timestamps), length(midbins));
 conc_err = zeros(length(timestamps), length(midbins));
-probe_flag = zeros(length(timestamps), length(midbins));
-
-cdp_flag = 1;
-cdp_holo_flag = 2;
-holo_flag = 3;
-holo_f2ds_flag = 4;
-f2ds_flag = 5;
-f2ds_hvps_flag = 6;
-hvps_flag = 7;
-
 
 %% Fill in each timestamp
 for t=1:length(timestamps)
     time_1Hz = timestamps(t);
-    [conc_t, err_t, probe_t] = composite_1Hz(time_1Hz);
+    [conc_t, err_t] = composite_1Hz(time_1Hz);
     conc(t,:)=conc_t;
     conc_err(t,:)=err_t;
-    probe_flag(t,:)=probe_t;
 end
 
 %% Function
-function [conc_best_t, conc_err_t, probe_flag_t]=composite_1Hz(t)
+function [conc_best_t, conc_err_t]=composite_1Hz(t)
     time_idx.cdp = cdp.time == t;
     time_idx.holo = holo.time == t;
     time_idx.f2ds = f2ds.time == t;
@@ -86,7 +75,6 @@ function [conc_best_t, conc_err_t, probe_flag_t]=composite_1Hz(t)
  
     conc_best_t= zeros(1, length(midbins));
     conc_err_t = zeros(1, length(midbins));
-    probe_flag_t = zeros(1, length(midbins));
 
     %% Determine data availability (timestamp exists, non-nan)
     exists.cdp = 0;
@@ -140,9 +128,8 @@ function [conc_best_t, conc_err_t, probe_flag_t]=composite_1Hz(t)
     %% Fill in CDP fixed range
     if exists.cdp
         conc_best_t(cdp_mask) = cdp.conc(time_idx.cdp,cdp_idx);
-        probe_flag_t(cdp_mask) = cdp_flag;
     % Fill with NaN if data is unavailable
-    else conc_best_t(cdp_mask) = NaN; probe_flag_t(cdp_mask) = NaN;
+    else conc_best_t(cdp_mask) = NaN;
     end
     % assign error
     conc_err_t(cdp_mask) = cdp_holo_err;
@@ -150,47 +137,41 @@ function [conc_best_t, conc_err_t, probe_flag_t]=composite_1Hz(t)
     %% Fill in Holodec fixed range
     if exists.holo
         conc_best_t(holo_mask) = holo.conc(time_idx.holo,holo_idx);
-        probe_flag_t(holo_mask) = holo_flag;
     % Use CDP as backup
     elseif exists.cdp
         conc_best_t(holo_mask) = cdp.conc(time_idx.cdp,holo_idx);
-        probe_flag_t(holo_mask) = cdp_flag;
     % Fill with NaN if data is unavailable
-    else conc_best_t(holo_mask) = NaN; probe_flag_t(holo_mask) = NaN;  
+    else conc_best_t(holo_mask) = NaN;     
     end
     % assign error
     conc_err_t(holo_mask) = cdp_holo_err;
 
     %% Fill in CDP HOLODEC crossover values
     if exists.cdp & exists.holo
-        [conc_best_t(cdp_holo_mask), probe_flag_t(cdp_holo_mask)] = transition(holo.conc(time_idx.holo,ismembertol(holo.midbins,probe_midbins.crossover_cdp_holo)),...
-                                                cdp.conc(time_idx.cdp,ismembertol(cdp.midbins,probe_midbins.crossover_cdp_holo)), [holo_flag cdp_flag cdp_holo_flag]);
+        conc_best_t(cdp_holo_mask)=transition(holo.conc(time_idx.holo,ismembertol(holo.midbins,probe_midbins.crossover_cdp_holo)),...
+                                                cdp.conc(time_idx.cdp,ismembertol(cdp.midbins,probe_midbins.crossover_cdp_holo)));
     % Use backup if one probe is unavailable
     elseif exists.cdp & ~exists.holo
         conc_best_t(cdp_holo_mask)=cdp.conc(time_idx.cdp,ismembertol(cdp.midbins,probe_midbins.crossover_cdp_holo));
-        probe_flag_t(cdp_holo_mask)=cdp_flag;
     elseif ~exists.cdp & exists.holo
         conc_best_t(cdp_holo_mask)=holo.conc(time_idx.holo,ismembertol(holo.midbins,probe_midbins.crossover_cdp_holo));
-        probe_flag_t(cdp_holo_mask)=holo_flag;
     % Fill with NaN if data is unavailable
-    else conc_best_t(cdp_holo_mask) = NaN; probe_flag_t(cdp_holo_mask)=NaN;
+    else conc_best_t(cdp_holo_mask) = NaN;   
     end
     % assign error
     conc_err_t(cdp_holo_mask) =  cdp_holo_err;
      
     %% Fill in HOLODEC F2DS crossover values
     if exists.holo & exists.f2ds
-        [conc_best_t(holo_f2ds_mask), probe_flag_t(holo_f2ds_mask)]=transition(holo.conc(time_idx.holo,ismember(holo.midbins,probe_midbins.crossover_holo_f2ds)),...
-                                                f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_holo_f2ds)),[holo_flag f2ds_flag holo_f2ds_flag]);
+        conc_best_t(holo_f2ds_mask)=transition(holo.conc(time_idx.holo,ismember(holo.midbins,probe_midbins.crossover_holo_f2ds)),...
+                                                f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_holo_f2ds)));
     % Use backup if one probe is unavailable
     elseif exists.f2ds & ~exists.holo
         conc_best_t(holo_f2ds_mask)=f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_holo_f2ds));
-        probe_flag_t(holo_f2ds_mask) = f2ds_flag;
     elseif ~exists.f2ds & exists.holo
         conc_best_t(holo_f2ds_mask)=holo.conc(time_idx.holo,ismember(holo.midbins,probe_midbins.crossover_holo_f2ds))
-        probe_flag_t(holo_f2ds_mask) = holo_flag;
     % Fill with NaN if data is unavailable
-    else conc_best_t(holo_f2ds_mask) = NaN; probe_flag_t(holo_f2ds_mask) = NaN;
+    else conc_best_t(holo_f2ds_mask) = NaN;   
     end
     % assign error
     conc_err_t(holo_f2ds_mask) = holo_f2ds_err;
@@ -198,24 +179,21 @@ function [conc_best_t, conc_err_t, probe_flag_t]=composite_1Hz(t)
     %% Fill in F2DS values
     if exists.f2ds
         conc_best_t(f2ds_mask) = f2ds.conc(time_idx.f2ds,f2ds_idx);
-        probe_flag_t(f2ds_mask) =f2ds_flag;
     % Fill with NaN if data is unavailable
-    else conc_best_t(f2ds_mask) = NaN; probe_flag_t(f2ds_mask) = NaN;
+    else conc_best_t(f2ds_mask) = NaN
     end
     % assign error
     conc_err_t(f2ds_mask) = f2ds_err;
 
     %% Fill in F2DS HVPS crossover values
     if exists.f2ds & exists.hvps
-        [conc_best_t(f2ds_hvps_mask), probe_flag_t(f2ds_hvps_mask)]=transition(f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_f2ds_hvps)),...
-                                                hvps.conc(time_idx.hvps,ismember(hvps.midbins,probe_midbins.crossover_f2ds_hvps)),[f2ds_flag hvps_flag f2ds_hvps_flag]);
+        conc_best_t(f2ds_hvps_mask)=transition(f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_f2ds_hvps)),...
+                                                hvps.conc(time_idx.hvps,ismember(hvps.midbins,probe_midbins.crossover_f2ds_hvps)));
     elseif exists.f2ds & ~exists.hvps
         conc_best_t(f2ds_hvps_mask)=f2ds.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_f2ds_hvps));
-        probe_flag_t(f2ds_hvps_mask) = f2ds_flag;
     elseif ~exists.f2ds & exists.hvps
         conc_best_t(f2ds_hvps_mask)=hvps.conc(time_idx.hvps,ismember(hvps.midbins,probe_midbins.crossover_f2ds_hvps));
-        probe_flag_t(f2ds_hvps_mask) = hvps_flag;
-    else conc_best_t(f2ds_hvps_mask)=NaN; probe_flag_t(f2ds_hvps_mask)=NaN;
+    else conc_best_t(f2ds_hvps_mask)=NaN;
     end
     % assign error
     conc_err_t(f2ds_hvps_mask) = f2ds_hvps_err;
@@ -223,8 +201,7 @@ function [conc_best_t, conc_err_t, probe_flag_t]=composite_1Hz(t)
     %% Fill in HVPS values
     if exists.hvps
         conc_best_t(hvps_mask) = hvps.conc(time_idx.hvps,hvps_idx);
-        probe_flag_t(hvps_mask) = hvps_flag;
-    else conc_best_t(hvps_mask) = NaN; probe_flag_t(hvps_mask) = NaN;
+    else conc_best_t(hvps_mask) = NaN;
     end
     % assign error
     conc_err_t(hvps_mask) = 0;

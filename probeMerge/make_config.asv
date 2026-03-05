@@ -20,7 +20,7 @@ options.PSD_phase = 1; % Perform PSD phase partition: 1=yes, 0=no
 
 % Output netcdf file
 outdir = "/home/utest/Research/CAESAR/Microphysics/DataProduct/";
-outnc = outdir + flightnumber + "_microphysics_PRELIMINARY.nc";
+outnc = outdir + flightnumber + "_microphysics_PREL.nc";
 
 % Data Sources
 datadir = "/home/utest/Research/CAESAR/CAESAR_Data/";

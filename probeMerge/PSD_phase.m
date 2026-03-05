@@ -1,0 +1,291 @@
+function [concround, concice, concround_err, concice_err, probe_round, probe_ice] = PSD_phase(flightnumber, timestamps)
+% Read in required files
+% OUTPUTS:
+% composite DSD best estimate
+% mean uncertainty
+
+%% Read in aircraft file
+try
+    make_config(flightnumber);
+catch
+    disp("Error in make_config")
+    return %stop script if config doesnt work
+end
+load("config","source")
+
+if exist(source.cdp_nc, 'file')
+    cdp = read_cdp(source.cdp_nc);
+    % endbins, midbins, conc, date, time
+end
+if exist(source.holo_nc, 'file')
+    holo = read_holo(source.holo_nc);
+    % endbins, midbins, conc, nt
+end
+if exist(source.f2ds_nc, 'file')
+    f2ds = read_f2ds(source.f2ds_nc);
+    % endbins, midbins, conc
+end
+if exist(source.f2ds_round, 'file')
+    f2ds_round = read_f2ds(source.f2ds_round);
+    % endbins, midbins, conc
+end
+if exist(source.hvps_nc, 'file')
+    hvps = read_OAP(source.hvps_nc);
+    % endbins, midbins, conc
+end
+
+%% Read in composite bin data (requires bins.mat file in same directory)
+create_bins();
+load("bins","probe_endbins","probe_midbins");
+endbins = probe_endbins.composite;
+binwidth = endbins(2:end) - endbins(1:end-1);
+midbins = probe_midbins.composite;
+
+%% Masks
+cdp_mask = ismembertol(midbins,probe_midbins.fixed_cdp); % composite bins that are used
+cdp_idx = ismembertol(cdp.midbins,probe_midbins.fixed_cdp); % cdp bins that are used
+
+holo_mask = ismembertol(midbins,probe_midbins.fixed_holo);% composite bins that are used
+holo_idx = ismembertol(holo.midbins,probe_midbins.fixed_holo); % holo bins that are used
+
+f2ds_mask = ismembertol(midbins,probe_midbins.fixed_f2ds); % composite bins that are used
+f2ds_idx = ismembertol(f2ds.midbins,probe_midbins.fixed_f2ds); % f2ds bins that are used
+
+hvps_mask = ismembertol(midbins,probe_midbins.fixed_hvps); % composite bins that are used
+hvps_idx = ismembertol(hvps.midbins,probe_midbins.fixed_hvps); % hvps bins that are used
+
+cdp_holo_mask = ismembertol(midbins,probe_midbins.crossover_cdp_holo); % cdp holodec crossover
+holo_f2ds_mask = ismembertol(midbins,probe_midbins.crossover_holo_f2ds); % holodec f2ds crossover
+f2ds_hvps_mask = ismembertol(midbins,probe_midbins.crossover_f2ds_hvps); % f2ds hvps crossover
+
+%% Set up count/concentration variables
+concround= zeros(length(timestamps), length(midbins));
+concice= zeros(length(timestamps), length(midbins));
+concround_err = zeros(length(timestamps), length(midbins));
+concround_err = zeros(length(timestamps), length(midbins));
+
+probe_round = zeros(length(timestamps), length(midbins));
+probe_ice = zeros(length(timestamps), length(midbins));
+cdp_flag = 1;
+cdp_holo_flag = 2;
+holo_flag = 3;
+holo_f2ds_flag = 4;
+f2ds_flag = 5;
+f2ds_hvps_flag = 6;
+hvps_flag = 7;
+
+%% Fill in each timestamp
+for t=1:length(timestamps)
+    time_1Hz = timestamps(t);
+    [concround_t, concice_t, concround_err_t, concice_err_t, proberound_t, probeice_t] = composite_1Hz(time_1Hz);
+    concround(t,:)=concround_t;
+    concround_err(t,:)=concround_err_t;
+    probe_round(t,:)=proberound_t;
+    concice(t,:)=concice_t;
+    concice_err(t,:)=concice_err_t;
+    probe_ice(t,:)=probeice_t;
+end
+
+%% Function
+    function [concr_t, conci_t, concr_err_t, conci_err_t, probe_round_t, probe_ice_t]=composite_1Hz(t)
+    time_idx.cdp = cdp.time == t;
+    time_idx.holo = holo.time == t;
+    time_idx.f2ds = f2ds.time == t;
+    time_idx.hvps = hvps.time == t;
+ 
+    concr_t= zeros(1, length(midbins));
+    concr_err_t = zeros(1, length(midbins));
+    probe_round_t = zeros(1, length(midbins));
+    conci_t= zeros(1, length(midbins));
+    conci_err_t = zeros(1, length(midbins));
+    probe_ice_t = zeros(1, length(midbins));
+
+    %% Determine data availability (timestamp exists, non-nan)
+    exists.cdp = 0;
+    exists.holo = 0;
+    exists.f2ds = 0;
+    exists.hvps = 0;
+
+    probes = fieldnames(exists);
+    for i = 1:numel(probes)
+        probeName = probes{i};
+        timecheck = sum(time_idx.(probeName))==1;
+        switch probeName
+            case "cdp"
+                nancheck = any(isnan(cdp.conc(time_idx.cdp,:)), 'all');
+            case "holo"
+                nancheck = any(isnan(holo.conc(time_idx.holo,:)), 'all'); % | all(holo.conc(time_idx.holo,:)==0);
+            case "f2ds"
+                nancheck = any(isnan(f2ds.conc(time_idx.f2ds,:)), 'all');
+            case probeName=="hvps"
+                nancheck = any(isnan(hvps.conc(time_idx.hvps,:)), 'all');
+        end
+        if timecheck & ~nancheck
+            exists.(probeName)=1;
+        end
+    end
+  
+    %% Round PSD
+    % Calculate cdp/holodec round uncertainty
+    if exists.cdp & exists.holo
+        cdp_holo_err = calculate_uncertainty(cdp.conc(time_idx.cdp,ismembertol(cdp.midbins,probe_midbins.overlap_cdp_holo)),...
+                                            holo.conc_round(time_idx.holo,ismembertol(holo.midbins,probe_midbins.overlap_cdp_holo)));
+    else cdp_holo_err = 0;
+    end
+
+    % Calculate holodec/f2ds round uncertainty
+    if exists.holo & exists.f2ds
+        holo_f2ds_rounderr = calculate_uncertainty(f2ds_round.conc(time_idx.f2ds,ismembertol(f2ds.midbins,probe_midbins.overlap_holo_f2ds)),...
+                                            holo.conc_round(time_idx.holo,ismembertol(holo.midbins,probe_midbins.overlap_holo_f2ds)));
+    else holo_f2ds_rounderr = 0;
+    end
+
+    % Fill in CDP fixed range
+    if exists.cdp
+        concr_t(cdp_mask) = cdp.conc(time_idx.cdp,cdp_idx);
+        probe_round_t(cdp_mask) = cdp_flag;
+    % Fill with NaN if data is unavailable
+    else concr_t(cdp_mask) = NaN; probe_round_t(cdp_mask) = NaN;
+    end
+    % assign error
+    concr_err_t(cdp_mask) = cdp_holo_err;
+
+    % Fill in Holodec fixed range
+    if exists.holo
+        concr_t(holo_mask) = holo.conc_round(time_idx.holo,holo_idx);
+        probe_round_t(holo_mask) = holo_flag;
+    % Use CDP as backup
+    elseif exists.cdp
+        concr_t(holo_mask) = cdp.conc(time_idx.cdp,holo_idx);
+        probe_round_t(holo_mask) = cdp_flag;
+    % Fill with NaN if data is unavailable
+    else concr_t(holo_mask) = NaN; probe_round_t(holo_mask) = NaN;  
+    end
+    % assign error
+    concr_err_t(holo_mask) = cdp_holo_err;
+
+    % Fill in CDP HOLODEC crossover values
+    if exists.cdp & exists.holo
+        [concr_t(cdp_holo_mask), probe_round_t(cdp_holo_mask)] = transition(holo.conc_round(time_idx.holo,ismembertol(holo.midbins,probe_midbins.crossover_cdp_holo)),...
+                                                cdp.conc(time_idx.cdp,ismembertol(cdp.midbins,probe_midbins.crossover_cdp_holo)), [holo_flag cdp_flag cdp_holo_flag]);
+    % Use backup if one probe is unavailable
+    elseif exists.cdp & ~exists.holo
+        concr_t(cdp_holo_mask)=cdp.conc(time_idx.cdp,ismembertol(cdp.midbins,probe_midbins.crossover_cdp_holo));
+        probe_round_t(cdp_holo_mask)=cdp_flag;
+    elseif ~exists.cdp & exists.holo
+        concr_t(cdp_holo_mask)=holo.conc_round(time_idx.holo,ismembertol(holo.midbins,probe_midbins.crossover_cdp_holo));
+        probe_round_t(cdp_holo_mask)=holo_flag;
+    % Fill with NaN if data is unavailable
+    else concr_t(cdp_holo_mask) = NaN; probe_round_t(cdp_holo_mask)=NaN;
+    end
+    % assign error
+    concr_err_t(cdp_holo_mask) =  cdp_holo_err;
+
+    %% Fill in HOLODEC F2DS crossover values
+    if exists.holo & exists.f2ds
+        [concr_t(holo_f2ds_mask), probe_round_t(holo_f2ds_mask)]=transition(holo.conc_round(time_idx.holo,ismember(holo.midbins,probe_midbins.crossover_holo_f2ds)),...
+                                                f2ds_round.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_holo_f2ds)),[holo_flag f2ds_flag holo_f2ds_flag]);
+    % Use backup if one probe is unavailable
+    elseif exists.f2ds & ~exists.holo
+        concr_t(holo_f2ds_mask)=f2ds_round.conc(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_holo_f2ds));
+        probe_round_t(holo_f2ds_mask) = f2ds_flag;
+    elseif ~exists.f2ds & exists.holo
+        concr_t(holo_f2ds_mask)=holo.conc_round(time_idx.holo,ismember(holo.midbins,probe_midbins.crossover_holo_f2ds))
+        probe_round_t(holo_f2ds_mask) = holo_flag;
+    % Fill with NaN if data is unavailable
+    else concr_t(holo_f2ds_mask) = NaN; probe_round_t(holo_f2ds_mask) = NaN;
+    end
+    % assign error
+    concr_err_t(holo_f2ds_mask) = holo_f2ds_rounderr;
+
+    %% Fill in F2DS values
+    if exists.f2ds
+        concr_t(f2ds_mask) = f2ds_round.conc(time_idx.f2ds,f2ds_idx);
+        probe_round_t(f2ds_mask) =f2ds_flag;
+    % Fill with NaN if data is unavailable
+    else concr_t(f2ds_mask) = NaN; probe_round_t(f2ds_mask) = NaN;
+    end
+    % assign error
+    concr_err_t(f2ds_mask) = holo_f2ds_rounderr;
+
+
+    %% Ice PSD
+    f2ds_ice = f2ds.conc - f2ds_round.conc;    
+
+    % Calculate holodec/f2ds ice uncertainty
+    if exists.holo & exists.f2ds
+        holo_f2ds_iceerr = calculate_uncertainty(f2ds_ice(time_idx.f2ds,ismembertol(f2ds.midbins,probe_midbins.overlap_holo_f2ds)),...
+                                            holo.conc_ice(time_idx.holo,ismembertol(holo.midbins,probe_midbins.overlap_holo_f2ds)));
+    else holo_f2ds_iceerr = 0;
+    end
+
+    % Calculate f2ds/hvps uncertainty
+    if exists.f2ds & exists.hvps
+        f2ds_hvps_err = calculate_uncertainty(f2ds_ice(time_idx.f2ds,ismembertol(f2ds.midbins,probe_midbins.overlap_f2ds_hvps)),...
+                                            hvps.conc(time_idx.hvps,ismembertol(hvps.midbins,probe_midbins.overlap_f2ds_hvps)));
+    else f2ds_hvps_err = 0;
+    end
+
+    % Fill in Holodec fixed range
+    if exists.holo
+        conci_t(holo_mask) = holo.conc_ice(time_idx.holo,holo_idx);
+        probe_ice_t(holo_mask) = holo_flag;
+    % Fill with NaN if data is unavailable
+    else conci_t(holo_mask) = NaN; probe_ice_t(holo_mask) = NaN;  
+    end
+    % assign error
+    conci_err_t(holo_mask) = holo_f2ds_iceerr;
+
+    % Fill in HOLODEC F2DS crossover values
+    if exists.holo & exists.f2ds
+        [conci_t(holo_f2ds_mask), probe_ice_t(holo_f2ds_mask)]=transition(holo.conc_ice(time_idx.holo,ismember(holo.midbins,probe_midbins.crossover_holo_f2ds)),...
+                                                f2ds_ice(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_holo_f2ds)),[holo_flag f2ds_flag holo_f2ds_flag]);
+    % Use backup if one probe is unavailable
+    elseif exists.f2ds & ~exists.holo
+        conci_t(holo_f2ds_mask)=f2ds_ice(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_holo_f2ds));
+        probe_ice_t(holo_f2ds_mask) = f2ds_flag;
+    elseif ~exists.f2ds & exists.holo
+        conci_t(holo_f2ds_mask)=holo.conc_ice(time_idx.holo,ismember(holo.midbins,probe_midbins.crossover_holo_f2ds))
+        probe_ice_t(holo_f2ds_mask) = holo_flag;
+    % Fill with NaN if data is unavailable
+    else conci_t(holo_f2ds_mask) = NaN; probe_ice_t(holo_f2ds_mask) = NaN;
+    end
+    % assign error
+    conci_err_t(holo_f2ds_mask) = holo_f2ds_iceerr;
+
+    % Fill in F2DS values
+    if exists.f2ds
+        conci_t(f2ds_mask) = f2ds_ice(time_idx.f2ds,f2ds_idx);
+        probe_ice_t(f2ds_mask) =f2ds_flag;
+    % Fill with NaN if data is unavailable
+    else conci_t(f2ds_mask) = NaN; probe_ice_t(f2ds_mask) = NaN;
+    end
+    % assign error
+    conci_err_t(f2ds_mask) = holo_f2ds_iceerr;
+
+    % Fill in F2DS HVPS crossover values
+    if exists.f2ds & exists.hvps
+        [conci_t(f2ds_hvps_mask), probe_ice_t(f2ds_hvps_mask)]=transition(f2ds_ice(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_f2ds_hvps)),...
+                                                hvps.conc(time_idx.hvps,ismember(hvps.midbins,probe_midbins.crossover_f2ds_hvps)),[f2ds_flag hvps_flag f2ds_hvps_flag]);
+    elseif exists.f2ds & ~exists.hvps
+        conci_t(f2ds_hvps_mask)=f2ds_ice(time_idx.f2ds,ismember(f2ds.midbins,probe_midbins.crossover_f2ds_hvps));
+        probe_ice_t(f2ds_hvps_mask) = f2ds_flag;
+    elseif ~exists.f2ds & exists.hvps
+        conci_t(f2ds_hvps_mask)=hvps.conc(time_idx.hvps,ismember(hvps.midbins,probe_midbins.crossover_f2ds_hvps));
+        probe_ice_t(f2ds_hvps_mask) = hvps_flag;
+    else conci_t(f2ds_hvps_mask)=NaN; probe_ice_t(f2ds_hvps_mask)=NaN;
+    end
+    % assign error
+    conci_err_t(f2ds_hvps_mask) = f2ds_hvps_err;
+
+    % Fill in HVPS values
+    if exists.hvps
+        conci_t(hvps_mask) = hvps.conc(time_idx.hvps,hvps_idx);
+        probe_ice_t(hvps_mask) = hvps_flag;
+    else conci_t(hvps_mask) = NaN; probe_ice_t(hvps_mask) = NaN;
+    end
+    % assign error
+    conci_err_t(hvps_mask) = 0;
+end
+
+end
